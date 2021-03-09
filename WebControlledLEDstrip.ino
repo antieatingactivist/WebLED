@@ -144,19 +144,6 @@ void handleForm() {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 //------------handles bad server request
 
 void handleNotFound() {
