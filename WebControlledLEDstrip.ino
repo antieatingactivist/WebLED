@@ -5,18 +5,23 @@
 #include <EEPROM.h>
 #include <Adafruit_WS2801.h>
 
-const int range = 170;
+const int range = 170;        //number of LEDs addressed
+const int dataPin = 15;       //ws2801 data pin
+const int clockPin = 13;      //ws2801 clock pin
+const char* bonjourName = "light-strip";  //bonjour name - http://xxxx.local 
 
 
-Adafruit_WS2801 pipe = Adafruit_WS2801(range, 15, 13);
+Adafruit_WS2801 pipe = Adafruit_WS2801(range, dataPin, clockPin);
+
 
 const char* ssid = "Can't stop the signal, Mal";
 const char* password = "youcanttaketheskyfromme";
 
-ESP8266WebServer server(80);
+ESP8266WebServer server(80);    //start web server on port 80
 
-const int led = 2;
+const int led = 2;              //onboard LED
 
+//------------------------ Web Interface Strings ------------------------------------
 
 const String postForms = "<html>\
   <head>\
@@ -48,23 +53,27 @@ const String colorBoxEnd = ");stroke-width:3;stroke:rgb(0,0,0)\" />\
 const String htmlEnd = " </body>\
 </html>";
 
+
+//---------------------------------------------------------------------------------------
+
 void handleRoot() {
-  digitalWrite(led, 1);
+  digitalWrite(led, 1);  //built in LED on
 
 
-int Data[512];
-    for(int i=0; i<range*3; i++) {
+  int Data[512];     //create data buffer
+    for(int i=0; i<range*3; i++)  //read eeprom into data buffer
+    {
       Data[i] = EEPROM.read(i);
-      
     }
-  String boxColor;
-  String boxColor2;
-    String boxColor3;
+
+  String boxColor;            //--
+  String boxColor2;           //---- Declare strings to assemble LED web browser visualization. Need 3 separate strings to display all LEDs
+  String boxColor3;           //--
      for(int i=0; i<range; i++) { 
-         int x = i*3;
-        if(i < 50) boxColor = boxColor+colorBoxStart+String(Data[x])+","+String(Data[x+1])+","+String(Data[x+2])+colorBoxEnd;
-        if(i >= 50 && i < 100) boxColor2 = boxColor2+colorBoxStart+String(Data[x])+","+String(Data[x+1])+","+String(Data[x+2])+colorBoxEnd;
-        else boxColor3 = boxColor3+colorBoxStart+String(Data[x])+","+String(Data[x+1])+","+String(Data[x+2])+colorBoxEnd;
+         int x = i*3;               //separate red, green, and blue pixels.
+        if(i < 50) boxColor = boxColor+colorBoxStart+String(Data[x])+","+String(Data[x+1])+","+String(Data[x+2])+colorBoxEnd;                     //--
+        if(i >= 50 && i < 100) boxColor2 = boxColor2+colorBoxStart+String(Data[x])+","+String(Data[x+1])+","+String(Data[x+2])+colorBoxEnd;       //----assemble pixel data into human readable html/css
+        else boxColor3 = boxColor3+colorBoxStart+String(Data[x])+","+String(Data[x+1])+","+String(Data[x+2])+colorBoxEnd;                         //--
 
      }
  
@@ -72,9 +81,9 @@ int Data[512];
   
 
 
-  server.send(200, "text/html", postForms+boxColor+boxColor2+boxColor3+htmlEnd);
+  server.send(200, "text/html", postForms+boxColor+boxColor2+boxColor3+htmlEnd);  //--serve web page to client
 
-  digitalWrite(led, 0);
+  digitalWrite(led, 0); //built in LED off
 
 }
 
@@ -90,32 +99,35 @@ int Data[512];
 void handleForm() {
   if (server.method() != HTTP_POST) {
     digitalWrite(led, 1);
-    server.send(405, "text/plain", "Method Not Allowed");
+    server.send(405, "text/plain", "Method Not Allowed");   //handle server error
     digitalWrite(led, 0);
-  } else {
+  } 
+  
+  
+  
+  else {
     digitalWrite(led, 1);
     String message = "POST form was:\n";
-    for (uint8_t i = 0; i < server.args(); i++) {
+    for (uint8_t i = 0; i < server.args(); i++) {     //read and parse web form
       message += " " + server.argName(i) + ": " + server.arg(i) + "\n";
-      int red = server.arg(0).toInt();
-      int green = server.arg(1).toInt();
-      int blue = server.arg(2).toInt();
-      int from = server.arg(3).toInt()-1;
-      if (from > range) from = range;
-      int to = server.arg(4).toInt();  
-      if (to > range) to = range;      
+      int red = server.arg(0).toInt();      //converts red value (0-255) to integer
+      int green = server.arg(1).toInt();   //converts green value (0-255) to integer
+      int blue = server.arg(2).toInt();   //converts blue value (0-255) to integer
+      int from = server.arg(3).toInt()-1;   //start pixel
+      if (from > range) from = range;       //handles invalid range
+      int to = server.arg(4).toInt();       //end pixel
+      if (to > range) to = range;           //handles invalid range
 
              
-         for(int i=from; i<to; i++) { 
+         for(int i=from; i<to; i++) {     //prepares current LED color config for saving to eeprom
 
 
-             int x = (i)*3;
+             int x = (i)*3;   //arranges red, green, blue values to be written serially
              EEPROM.write(x, red);
              EEPROM.write(x+1, green);
              EEPROM.write(x+2, blue);            
-              pipe.setPixelColor(i, Color(red, green, blue));
-          
-             pipe.show();
+             pipe.setPixelColor(i, Color(red, green, blue));    //write data to addressable LED strip
+             pipe.show();                                       //
    
          }
 
@@ -145,7 +157,7 @@ void handleForm() {
 
 
 
-
+//------------handles bad server request
 
 void handleNotFound() {
   digitalWrite(led, 1);
@@ -164,47 +176,40 @@ void handleNotFound() {
   digitalWrite(led, 0);
 }
 
+//-------------------------
+
+
+//----------read eeprom and write to LED strip on boot
 
 
 void recoverOnBoot() {
 
-
-
-
-
-            for(int i=0; i<range; i++) { 
-
-
-             int x = i*3;
-
-            int red = EEPROM.read(x);
-            int green = EEPROM.read(x+1);             
-            int blue = EEPROM.read(x+2);             
-             
-
-
-
-             pipe.setPixelColor(i, Color(red, green, blue));
-  
-             pipe.show();
-
-         }
-
+  for(int i=0; i<range; i++) { 
     
+    int x = i*3;
 
+    int red = EEPROM.read(x);
+    int green = EEPROM.read(x+1);             
+    int blue = EEPROM.read(x+2);             
+    
+    pipe.setPixelColor(i, Color(red, green, blue));
   
+    pipe.show();
+
+  }
+
 }
 
-void setup(void) {
-  pipe.begin();  
+//-------------------------------
 
-  
-  EEPROM.begin(512);           
-  recoverOnBoot(); 
+void setup() {
+  pipe.begin();                   //initialize LED strip
+  EEPROM.begin(512);              //start EEPROM
+  recoverOnBoot();                //pull previous config from eeprom and write to LED strip
   pinMode(led, OUTPUT);
   digitalWrite(led, 0);
   Serial.begin(9600);
-  WiFi.begin(ssid, password);
+  WiFi.begin(ssid, password);     //start WiFi service
   Serial.println("");
 
   // Wait for connection
@@ -218,32 +223,23 @@ void setup(void) {
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
 
-  if (MDNS.begin("pipe2")) {
+  if (MDNS.begin(bonjourName)) {            //start Bonjour service
     Serial.println("MDNS responder started");
   }
 
-  server.on("/", handleRoot);
-
-//  server.on("/postplain/", handlePlain);
-
-  server.on("/postform/", handleForm);
-  
-
-
-  server.onNotFound(handleNotFound);
+  server.on("/", handleRoot);               //http://xxxxx.local/
+  server.on("/postform/", handleForm);      //http://xxxxx.local/postform/
+  server.onNotFound(handleNotFound);        //bad directory
 
   server.begin();
   Serial.println("HTTP server started");
 
 
-
-    Serial.println(EEPROM.read(0));
-        Serial.println(EEPROM.read(1));
-            Serial.println(EEPROM.read(2));
-
 }
 
 
+
+//--combine separate RGB values into 24 bit integer
 
 uint32_t Color(byte r, byte g, byte b)
 {
@@ -256,7 +252,9 @@ uint32_t Color(byte r, byte g, byte b)
   return c;
 }
 
-void loop(void) {
+//------
+
+void loop() {
 
   server.handleClient();
 
